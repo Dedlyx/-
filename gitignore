@@ -1,7 +1,0 @@
-__pycache__/
-*.pyc
-data.json
-.env
-*.log
-export_*.json
-/data/
