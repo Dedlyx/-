@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # Конфигурация ИЗ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ (ВАЖНО ДЛЯ RAILWAY!)
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "U")
-CHANNEL_ID = int(os.environ.get("CHANNEL_ID", "-1003207415613"))
+CHANNEL_ID = int(os.environ.get("CHANNEL_ID", "-1003666805503"))
 ADMIN_IDS = [int(id.strip()) for id in os.environ.get("ADMIN_IDS", "7955714952").split(",") if id.strip()]
 
 # Инициализация бота и диспетчера
@@ -347,4 +347,5 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
