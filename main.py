@@ -11,27 +11,13 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 
 # Настройка логирования
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Конфигурация из переменных окружения
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
-ADMIN_IDS = [int(id.strip()) for id in os.getenv("ADMIN_IDS", "").split(",") if id.strip()]
-
-# Проверка конфигурации
-if not BOT_TOKEN:
-    raise ValueError("BOT_TOKEN не установлен в переменных окружения")
-if not CHANNEL_ID:
-    raise ValueError("CHANNEL_ID не установлен в переменных окружения")
-if not ADMIN_IDS:
-    raise ValueError("ADMIN_IDS не установлен в переменных окружения")
-
-logger.info(f"Бот инициализирован для канала ID: {CHANNEL_ID}")
-logger.info(f"Администраторы: {ADMIN_IDS}")
+# Конфигурация ИЗ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ (ВАЖНО ДЛЯ RAILWAY!)
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "7617725824:AAFzBNy91rCJVP9212Q_ErJ7wOp9gqbUvwU")
+CHANNEL_ID = int(os.environ.get("CHANNEL_ID", "-1003666805503"))
+ADMIN_IDS = [int(id.strip()) for id in os.environ.get("ADMIN_IDS", "7955714952").split(",") if id.strip()]
 
 # Инициализация бота и диспетчера
 bot = Bot(token=BOT_TOKEN)
@@ -271,16 +257,13 @@ async def process_captcha(callback: types.CallbackQuery, state: FSMContext):
 @dp.message(Command("stats"))
 async def cmd_stats(message: types.Message):
     if message.from_user.id not in ADMIN_IDS:
-        await message.answer("❌ У вас нет прав для выполнения этой команды.")
         return
     
     stats_text = (
         f"📊 <b>Статистика бота</b>\n\n"
         f"👥 Ожидают проверки: {len(pending_users)}\n"
         f"🍏 Фруктов в капче: {len(FRUITS)}\n"
-        f"🆔 ID канала: {CHANNEL_ID}\n"
-        f"🤖 Юзернейм бота: @{(await bot.get_me()).username}\n"
-        f"⏰ Время работы: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        f"🆔 ID канала: {CHANNEL_ID}"
     )
     
     await message.answer(stats_text, parse_mode="HTML")
@@ -289,48 +272,12 @@ async def cmd_stats(message: types.Message):
 @dp.message(Command("clear"))
 async def cmd_clear(message: types.Message):
     if message.from_user.id not in ADMIN_IDS:
-        await message.answer("❌ У вас нет прав для выполнения этой команды.")
         return
     
     cleared = len(pending_users)
     pending_users.clear()
     
     await message.answer(f"✅ Очищено {cleared} пользователей из ожидания")
-
-# Команда для админа: список ожидающих
-@dp.message(Command("pending"))
-async def cmd_pending(message: types.Message):
-    if message.from_user.id not in ADMIN_IDS:
-        await message.answer("❌ У вас нет прав для выполнения этой команды.")
-        return
-    
-    if not pending_users:
-        await message.answer("📭 Список ожидающих пуст.")
-        return
-    
-    pending_list = "📋 <b>Ожидающие проверку:</b>\n\n"
-    for user_id, data in pending_users.items():
-        time_passed = datetime.now() - data["timestamp"]
-        minutes_left = 5 - int(time_passed.total_seconds() / 60)
-        minutes_left = max(0, minutes_left)
-        
-        pending_list += f"👤 ID: {user_id}\n"
-        pending_list += f"   🎯 Фрукт: {data['correct_name']}\n"
-        pending_list += f"   🔄 Попытки: {data['attempts']}/3\n"
-        pending_list += f"   ⏱ Осталось: {minutes_left} мин\n\n"
-    
-    await message.answer(pending_list, parse_mode="HTML")
-
-# Команда для админа: перезагрузка
-@dp.message(Command("restart"))
-async def cmd_restart(message: types.Message):
-    if message.from_user.id not in ADMIN_IDS:
-        await message.answer("❌ У вас нет прав для выполнения этой команды.")
-        return
-    
-    await message.answer("🔄 Перезагрузка бота...")
-    logger.info("Перезагрузка бота по команде администратора")
-    # На Railway перезагрузка происходит автоматически при деплое
 
 # Функция очистки устаревших записей
 async def cleanup_pending_users():
@@ -372,67 +319,31 @@ async def cleanup_pending_users():
         if expired_users:
             logger.info(f"Очищено {len(expired_users)} просроченных заявок")
 
-# Команда для проверки работоспособности
-@dp.message(Command("status"))
-async def cmd_status(message: types.Message):
-    await message.answer(
-        f"✅ Бот работает!\n"
-        f"🤖 Юзернейм: @{(await bot.get_me()).username}\n"
-        f"🕐 Время сервера: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-    )
-
-# Обработчик любых сообщений
-@dp.message()
-async def handle_any_message(message: types.Message):
-    # Игнорируем сообщения от ботов
-    if message.from_user.is_bot:
-        return
-    
-    # Отвечаем на простые сообщения
-    if message.text:
-        await message.answer(
-            "Я бот для проверки заявок в канал. "
-            "Используй /start для получения информации."
-        )
-
-# Главная функция запуска
+# Главная функция
 async def main():
     logger.info("=" * 50)
-    logger.info("Запуск Telegram Captcha Bot")
-    logger.info("=" * 50)
-    
-    # Получаем информацию о боте
-    bot_info = await bot.get_me()
-    logger.info(f"Бот: @{bot_info.username} ({bot_info.id})")
+    logger.info("БОТ ЗАПУЩЕН НА RAILWAY!")
     logger.info(f"Канал ID: {CHANNEL_ID}")
-    logger.info(f"Администраторы: {ADMIN_IDS}")
+    logger.info(f"Админы: {ADMIN_IDS}")
+    logger.info("=" * 50)
     
     # Запускаем фоновую задачу очистки
     asyncio.create_task(cleanup_pending_users())
     
     # Уведомляем админов о запуске
+    bot_info = await bot.get_me()
     for admin_id in ADMIN_IDS:
         try:
             await bot.send_message(
                 admin_id,
-                f"✅ Бот @{bot_info.username} запущен!\n"
-                f"🕐 Время запуска: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-                f"📊 Используй /stats для статистики"
+                f"✅ Бот @{bot_info.username} запущен на Railway!\n"
+                f"Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             )
-        except Exception as e:
-            logger.error(f"Не удалось уведомить администратора {admin_id}: {e}")
+        except:
+            pass
     
-    # Удаляем вебхук если есть (для чистого запуска)
-    await bot.delete_webhook(drop_pending_updates=True)
-    
-    # Запускаем поллинг
-    logger.info("Бот запущен и готов к работе")
+    # Запускаем бота
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("Бот остановлен")
-    except Exception as e:
-        logger.error(f"Критическая ошибка: {e}")
+    asyncio.run(main())
