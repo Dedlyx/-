@@ -19,7 +19,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Конфигурация
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "7617725824:AAFzBNy91rCJVP9212Q_ErJ7wOp9gqbUvwU")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8540263511:AAGyP8bX_hUoFX_eRdWXHKatiZKi7svZP24")
 CHANNEL_ID = int(os.environ.get("CHANNEL_ID", "-1003666805503"))
 ADMIN_IDS = [int(id.strip()) for id in os.environ.get("ADMIN_IDS", "7955714952").split(",") if id.strip()]
 
@@ -268,3 +268,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
