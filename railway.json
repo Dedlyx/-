@@ -5,8 +5,9 @@
     "buildCommand": "pip install -r requirements.txt"
   },
   "deploy": {
-    "startCommand": "python bot.py",
+    "numReplicas": 1,
+    "startCommand": "python main.py",
     "restartPolicyType": "ON_FAILURE",
-    "numReplicas": 1
+    "restartPolicyMaxRetries": 10
   }
 }
