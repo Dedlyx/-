@@ -9,17 +9,23 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiohttp import web
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Конфигурация ИЗ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ (ВАЖНО ДЛЯ RAILWAY!)
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "8540263511:AAGyP8bX_hUoFX_eRdWXHKatiZKi7svZP24")
+# Конфигурация
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "7617725824:AAFzBNy91rCJVP9212Q_ErJ7wOp9gqbUvwU")
 CHANNEL_ID = int(os.environ.get("CHANNEL_ID", "-1003666805503"))
 ADMIN_IDS = [int(id.strip()) for id in os.environ.get("ADMIN_IDS", "7955714952").split(",") if id.strip()]
 
-# Инициализация бота и диспетчера
+# Для webhook
+WEBHOOK_PATH = f"/webhook/{BOT_TOKEN}"
+WEBHOOK_URL = f"https://{os.environ.get('RAILWAY_STATIC_URL', '')}{WEBHOOK_PATH}"
+
+# Инициализация
 bot = Bot(token=BOT_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
@@ -282,7 +288,7 @@ async def cmd_clear(message: types.Message):
 # Функция очистки устаревших записей
 async def cleanup_pending_users():
     while True:
-        await asyncio.sleep(60)  # Проверка каждую минуту
+        await asyncio.sleep(60)
         
         now = datetime.now()
         expired_users = []
@@ -293,13 +299,11 @@ async def cleanup_pending_users():
         
         for user_id in expired_users:
             try:
-                # Отклоняем просроченные заявки
                 await bot.decline_chat_join_request(
                     chat_id=CHANNEL_ID,
                     user_id=user_id
                 )
                 
-                # Пытаемся уведомить пользователя
                 try:
                     await bot.send_message(
                         chat_id=user_id,
@@ -312,39 +316,68 @@ async def cleanup_pending_users():
             except Exception as e:
                 logger.error(f"Ошибка при очистке пользователя {user_id}: {e}")
             
-            # Удаляем из pending_users
             if user_id in pending_users:
                 del pending_users[user_id]
         
         if expired_users:
             logger.info(f"Очищено {len(expired_users)} просроченных заявок")
 
-# Главная функция
-async def main():
-    logger.info("=" * 50)
-    logger.info("БОТ ЗАПУЩЕН НА RAILWAY!")
-    logger.info(f"Канал ID: {CHANNEL_ID}")
-    logger.info(f"Админы: {ADMIN_IDS}")
-    logger.info("=" * 50)
+# Главная функция для webhook
+async def on_startup(bot: Bot):
+    await bot.set_webhook(WEBHOOK_URL)
+    logger.info("Webhook установлен")
     
     # Запускаем фоновую задачу очистки
     asyncio.create_task(cleanup_pending_users())
     
-    # Уведомляем админов о запуске
+    # Уведомляем админов
     bot_info = await bot.get_me()
     for admin_id in ADMIN_IDS:
         try:
             await bot.send_message(
                 admin_id,
-                f"✅ Бот @{bot_info.username} запущен на Railway!\n"
+                f"✅ Бот @{bot_info.username} запущен на Railway (Webhook)!\n"
                 f"Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             )
         except:
             pass
+
+async def main():
+    logger.info("=" * 50)
+    logger.info("Запуск бота с Webhook на Railway")
+    logger.info(f"Канал ID: {CHANNEL_ID}")
+    logger.info("=" * 50)
     
-    # Запускаем бота
-    await dp.start_polling(bot)
+    # Удаляем старый webhook если есть
+    await bot.delete_webhook()
+    
+    # Создаем aiohttp приложение
+    app = web.Application()
+    
+    # Настраиваем webhook
+    dp.startup.register(on_startup)
+    
+    # Регистрируем обработчик webhook
+    webhook_requests_handler = SimpleRequestHandler(
+        dispatcher=dp,
+        bot=bot,
+    )
+    
+    webhook_requests_handler.register(app, path=WEBHOOK_PATH)
+    
+    # Настраиваем порт
+    PORT = int(os.environ.get("PORT", 8080))
+    
+    # Запускаем сервер
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
+    await site.start()
+    
+    logger.info(f"Сервер запущен на порту {PORT}")
+    
+    # Бесконечный цикл
+    await asyncio.Event().wait()
 
 if __name__ == "__main__":
     asyncio.run(main())
-
